@@ -6,7 +6,300 @@
     <title>Document</title>
 </head>
 <body>
-    <h1>hola mundo</h1>
+    <h1>PowerShell</h1>
+    <p># ================================
+# CONFIGURACIÓN DE PSREADLINE
+# ================================
+
+Set-PSReadLineOption -PredictionSource History
+Set-PSReadLineOption -PredictionViewStyle ListView
+
+# ================================
+# PROMPT PERSONALIZADO ESTILO NICOLAYMH
+# ================================
+
+function prompt {
+    $path = (Get-Location).Path
+    $folderName = Split-Path -Path $path -Leaf
+    $folderLabel = "Folder:"
+    $separator = "=>"
+
+    $userPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    if ($userPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        $userType = "Root"
+        $userTypeColor = "Yellow"
+    } else {
+        $userType = "USER"
+        $userTypeColor = "Green"
+    }
+
+    Write-Host -NoNewline "[$folderLabel " -ForegroundColor Black
+    Write-Host -NoNewline "$folderName] " -ForegroundColor DarkYellow
+    Write-Host -NoNewline "$separator" -ForegroundColor Red
+    Write-Host -NoNewline " "
+    Write-Host -NoNewline "$userType> " -ForegroundColor $userTypeColor
+    return ""
+}
+
+# ================================
+# FUNCIÓN: LIMPIEZA DE ARCHIVOS TEMPORALES
+# ================================
+
+function Clear-DevCache {
+    Write-Host "`n🧼 Iniciando limpieza de caché y temporales..." -ForegroundColor Yellow
+
+    $tempPaths = @(
+        "$env:TEMP",
+        "$env:TMP",
+        "$env:LOCALAPPDATA\Temp",
+        "$env:APPDATA\Microsoft\Windows\Recent",
+        "$env:LOCALAPPDATA\Microsoft\Windows\INetCache",
+        "$env:APPDATA\Code\Cache"
+    )
+
+    $totalEliminados = 0
+    $carpetasVacias = 0
+    $resultados = @()
+
+    foreach ($path in $tempPaths) {
+        if (Test-Path $path) {
+            try {
+                $archivos = Get-ChildItem -Path $path -Recurse -Force -File -ErrorAction SilentlyContinue
+                $eliminados = 0
+                foreach ($archivo in $archivos) {
+                    try {
+                        Remove-Item $archivo.FullName -Force -ErrorAction Stop
+                        $eliminados++
+                    } catch {
+                        # Silently continue
+                    }
+                }
+                $totalEliminados += $eliminados
+
+                $carpetas = Get-ChildItem -Path $path -Recurse -Force -Directory -ErrorAction SilentlyContinue
+                $vacíasEliminadas = 0
+                foreach ($carpeta in $carpetas) {
+                    if (-not (Get-ChildItem -Path $carpeta.FullName -Force -ErrorAction SilentlyContinue)) {
+                        try {
+                            Remove-Item $carpeta.FullName -Force -ErrorAction Stop
+                            $vacíasEliminadas++
+                        } catch {
+                            # Silently continue
+                        }
+                    }
+                }
+                $carpetasVacias += $vacíasEliminadas
+
+                $resultados += [PSCustomObject]@{
+                    Ruta = $path
+                    ArchivosEliminados = $eliminados
+                    CarpetasVaciasEliminadas = $vacíasEliminadas
+                    Estado = "✅ Éxito"
+                }
+
+            } catch {
+                $resultados += [PSCustomObject]@{
+                    Ruta = $path
+                    ArchivosEliminados = 0
+                    CarpetasVaciasEliminadas = 0
+                    Estado = "❌ Error: $($_.Exception.Message)"
+                }
+            }
+        } else {
+            $resultados += [PSCustomObject]@{
+                Ruta = $path
+                ArchivosEliminados = 0
+                CarpetasVaciasEliminadas = 0
+                Estado = "🔍 No encontrada"
+            }
+        }
+    }
+
+    Write-Host "`n📊 Resumen de limpieza:" -ForegroundColor Cyan
+    $resultados | Format-Table -AutoSize
+
+    if ($totalEliminados -eq 0 -and $carpetasVacias -eq 0) {
+        Write-Host "`n⚠️ No se eliminó nada. Ejecuta PowerShell como administrador si hay archivos protegidos." -ForegroundColor Red
+    } else {
+        Write-Host "`n✅ Limpieza completada con éxito." -ForegroundColor Green
+    }
+}
+
+# ================================
+# FUNCIÓN: COMANDOS ESENCIALES CON EJEMPLOS
+# ================================
+
+function comandos {
+    Write-Host "`n🧠 COMANDOS ESENCIALES PARA PROGRAMADORES" -ForegroundColor Cyan
+
+    # PowerShell
+    Write-Host "`n--- PowerShell ---" -ForegroundColor Yellow
+    @(
+        [PSCustomObject]@{ Comando = "Get-Process"; Descripción = "Lista procesos activos"; Ejemplo = "Get-Process" },
+        [PSCustomObject]@{ Comando = "Get-Service"; Descripción = "Muestra servicios del sistema"; Ejemplo = "Get-Service | Where-Object {`$_.Status -eq 'Running'}" },
+        [PSCustomObject]@{ Comando = "Get-Content archivo"; Descripción = "Lee el contenido de un archivo"; Ejemplo = "Get-Content .\log.txt" },
+        [PSCustomObject]@{ Comando = "Set-Location ruta"; Descripción = "Cambia de directorio (cd)"; Ejemplo = "Set-Location C:\Proyectos" },
+        [PSCustomObject]@{ Comando = "Test-Path ruta"; Descripción = "Verifica si una ruta existe"; Ejemplo = "Test-Path C:\Windows" },
+        [PSCustomObject]@{ Comando = "Copy-Item origen destino"; Descripción = "Copia archivos o carpetas"; Ejemplo = "Copy-Item archivo.txt C:\Backup\" },
+        [PSCustomObject]@{ Comando = "Move-Item origen destino"; Descripción = "Mueve archivos o carpetas"; Ejemplo = "Move-Item archivo.txt C:\Backup\" },
+        [PSCustomObject]@{ Comando = "Remove-Item ruta"; Descripción = "Elimina archivos o carpetas"; Ejemplo = "Remove-Item archivo.txt" },
+        [PSCustomObject]@{ Comando = "Get-Help comando"; Descripción = "Muestra ayuda sobre un comando"; Ejemplo = "Get-Help Get-Process" }
+    ) | Format-Table -AutoSize
+
+    # CMD
+    Write-Host "`n--- CMD ---" -ForegroundColor Green
+    @(
+        [PSCustomObject]@{ Comando = "dir"; Descripción = "Lista archivos y carpetas"; Ejemplo = "dir" },
+        [PSCustomObject]@{ Comando = "cls"; Descripción = "Limpia la pantalla"; Ejemplo = "cls" },
+        [PSCustomObject]@{ Comando = "ipconfig"; Descripción = "Muestra configuración de red"; Ejemplo = "ipconfig /all" },
+        [PSCustomObject]@{ Comando = "ping dominio"; Descripción = "Verifica conectividad"; Ejemplo = "ping google.com" },
+        [PSCustomObject]@{ Comando = "tasklist"; Descripción = "Lista procesos activos"; Ejemplo = "tasklist" },
+        [PSCustomObject]@{ Comando = "shutdown /s /t 0"; Descripción = "Apaga el sistema inmediatamente"; Ejemplo = "shutdown /s /t 0" }
+    ) | Format-Table -AutoSize
+
+    # VS Code
+    Write-Host "`n--- VS Code ---" -ForegroundColor Blue
+    @(
+        [PSCustomObject]@{ Comando = "code ."; Descripción = "Abre la carpeta actual en VS Code"; Ejemplo = "code ." },
+        [PSCustomObject]@{ Comando = "code archivo"; Descripción = "Abre un archivo específico en VS Code"; Ejemplo = "code index.html" }
+    ) | Format-Table -AutoSize
+
+    Write-Host "`n✅ Fin de comandos esenciales." -ForegroundColor Cyan
+}
+
+# ================================
+# FUNCIÓN: COMANDOS DE GIT CON EJEMPLOS
+# ================================
+
+function githelp {
+    Write-Host "`n🌿 COMANDOS ESENCIALES DE GIT PARA PROGRAMADORES" -ForegroundColor Magenta
+
+    # Inicialización y clonación
+    Write-Host "`n--- Inicialización y clonación ---" -ForegroundColor Yellow
+    @(
+        [PSCustomObject]@{ Comando = "git init"; Descripción = "Inicializa un repositorio local"; Ejemplo = "git init" },
+        [PSCustomObject]@{ Comando = "git clone <url>"; Descripción = "Clona un repositorio remoto"; Ejemplo = "git clone https://github.com/usuario/proyecto" }
+    ) | Format-Table -AutoSize
+
+    # Estado y cambios
+    Write-Host "`n--- Estado y cambios ---" -ForegroundColor Yellow
+    @(
+        [PSCustomObject]@{ Comando = "git status"; Descripción = "Muestra el estado del repositorio"; Ejemplo = "git status" },
+        [PSCustomObject]@{ Comando = "git add <archivo>"; Descripción = "Añade archivos al staging"; Ejemplo = "git add index.html" },
+        [PSCustomObject]@{ Comando = "git add ."; Descripción = "Añade todos los cambios"; Ejemplo = "git add ." },
+        [PSCustomObject]@{ Comando = 'git commit -m "mensaje"'; Descripción = "Crea un commit con mensaje"; Ejemplo = 'git commit -m "Corrige errores de estilo"' },
+        [PSCustomObject]@{ Comando = "git log"; Descripción = "Muestra historial de commits"; Ejemplo = "git log --oneline" },
+        [PSCustomObject]@{ Comando = "git diff"; Descripción = "Muestra diferencias entre versiones"; Ejemplo = "git diff" }
+    ) | Format-Table -AutoSize
+
+    # Ramas
+    Write-Host "`n--- Ramas ---" -ForegroundColor Yellow
+    @(
+        [PSCustomObject]@{ Comando = "git branch"; Descripción = "Lista las ramas locales"; Ejemplo = "git branch" },
+        [PSCustomObject]@{ Comando = "git checkout <rama>"; Descripción = "Cambia a otra rama"; Ejemplo = "git checkout main" },
+        [PSCustomObject]@{ Comando = "git merge <rama>"; Descripción = "Fusiona cambios de otra rama"; Ejemplo = "git merge feature/login" },
+        [PSCustomObject]@{ Comando = "git branch -d <rama>"; Descripción = "Elimina una rama local"; Ejemplo = "git branch -d temp-fix" }
+    ) | Format-Table -AutoSize
+
+    Write-Host "`n✅ Fin de comandos Git esenciales." -ForegroundColor Magenta
+}
+
+# ================================
+# FUNCIÓN: INFORMACIÓN DEL SISTEMA
+# ================================
+
+function sysinfo {
+    Write-Host "`n💻 INFORMACIÓN COMPLETA DEL SISTEMA" -ForegroundColor Cyan
+
+    # SISTEMA
+    $os = Get-CimInstance Win32_OperatingSystem
+    $bios = Get-CimInstance Win32_BIOS
+    $board = Get-CimInstance Win32_BaseBoard
+    $arch = (Get-CimInstance Win32_ComputerSystem).SystemType
+    $psVersion = $PSVersionTable.PSVersion.ToString()
+    $wtVersion = (Get-Item "$env:LOCALAPPDATA\Microsoft\WindowsApps\wt.exe").VersionInfo.ProductVersion
+
+    # USUARIO Y PANTALLA
+    $screen = Get-CimInstance -Namespace root\wmi -ClassName WmiMonitorBasicDisplayParams | Select-Object -First 1
+    $resX = $screen.MaxHorizontalImageSize * 10
+    $resY = $screen.MaxVerticalImageSize * 10
+
+    # CPU, RAM
+    $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
+    $memory = Get-CimInstance Win32_ComputerSystem
+    $totalRAM = [Math]::Round($memory.TotalPhysicalMemory / 1GB, 2)
+    $freeRAM = [Math]::Round(($os.FreePhysicalMemory * 1KB) / 1GB, 2)
+    $usedRAM = [Math]::Round($totalRAM - $freeRAM, 2)
+
+    # DISCO
+    $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'"
+    $totalDisk = [Math]::Round($disk.Size / 1GB, 2)
+    $freeDisk = [Math]::Round($disk.FreeSpace / 1GB, 2)
+    $usedDisk = [Math]::Round($totalDisk - $freeDisk, 2)
+
+    # GPU
+    $gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1
+    $gpuMem = [Math]::Round($gpu.AdapterRAM / 1MB, 0)
+
+    # RED
+    $net = Get-NetAdapter | Where-Object { $_.Status -eq "Up" } | Select-Object -First 1
+    $rawSpeed = $net.LinkSpeed -replace '[^\d.]', ''
+    $speedMbps = [math]::Round([double]$rawSpeed, 2)
+    $ipLocal = (Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias $net.Name -PrefixOrigin Dhcp).IPAddress
+    $ipPublic = (Invoke-RestMethod -Uri "https://api.ipify.org?format=json").ip
+
+    # BATERÍA
+    $battery = Get-CimInstance Win32_Battery
+    $batteryStatus = if ($battery) { "$($battery.EstimatedChargeRemaining)% ($($battery.BatteryStatus))" } else { "No disponible" }
+
+    # TABLAS
+    $infoGeneral = @(
+        [PSCustomObject]@{ "Componente" = "Sistema Operativo"; "Valor" = "$($os.Caption) $($os.Version)" },
+        [PSCustomObject]@{ "Componente" = "Arquitectura"; "Valor" = $arch },
+        [PSCustomObject]@{ "Componente" = "Usuario"; "Valor" = $env:USERNAME },
+        [PSCustomObject]@{ "Componente" = "Dominio"; "Valor" = $env:USERDOMAIN },
+        [PSCustomObject]@{ "Componente" = "Resolución Estimada"; "Valor" = "${resX}x${resY} px" },
+        [PSCustomObject]@{ "Componente" = "PowerShell"; "Valor" = $psVersion },
+        [PSCustomObject]@{ "Componente" = "Windows Terminal"; "Valor" = $wtVersion }
+    )
+
+    $infoHardware = @(
+        [PSCustomObject]@{ "Componente" = "Procesador"; "Valor" = $cpu.Name },
+        [PSCustomObject]@{ "Componente" = "Núcleos Lógicos"; "Valor" = $cpu.NumberOfLogicalProcessors },
+        [PSCustomObject]@{ "Componente" = "RAM Total"; "Valor" = "$totalRAM GB" },
+        [PSCustomObject]@{ "Componente" = "RAM Usada"; "Valor" = "$usedRAM GB" },
+        [PSCustomObject]@{ "Componente" = "RAM Libre"; "Valor" = "$freeRAM GB" },
+        [PSCustomObject]@{ "Componente" = "Disco ($env:SystemDrive)"; "Valor" = "$totalDisk GB Total" },
+        [PSCustomObject]@{ "Componente" = "Disco Usado"; "Valor" = "$usedDisk GB" },
+        [PSCustomObject]@{ "Componente" = "Disco Libre"; "Valor" = "$freeDisk GB" },
+        [PSCustomObject]@{ "Componente" = "GPU"; "Valor" = $gpu.Name },
+        [PSCustomObject]@{ "Componente" = "Memoria GPU"; "Valor" = "$gpuMem MB" },
+        [PSCustomObject]@{ "Componente" = "Placa Base"; "Valor" = "$($board.Manufacturer) $($board.Product)" },
+        [PSCustomObject]@{ "Componente" = "BIOS"; "Valor" = "$($bios.Manufacturer) $($bios.SMBIOSBIOSVersion)" },
+        [PSCustomObject]@{ "Componente" = "Batería"; "Valor" = $batteryStatus }
+    )
+
+    $infoRed = @(
+        [PSCustomObject]@{ "Componente" = "Adaptador de Red"; "Valor" = $net.Name },
+        [PSCustomObject]@{ "Componente" = "Tipo"; "Valor" = $net.InterfaceDescription },
+        [PSCustomObject]@{ "Componente" = "Velocidad"; "Valor" = "$speedMbps Mbps" },
+        [PSCustomObject]@{ "Componente" = "MAC"; "Valor" = $net.MacAddress },
+        [PSCustomObject]@{ "Componente" = "IP Local"; "Valor" = $ipLocal },
+        [PSCustomObject]@{ "Componente" = "IP Pública"; "Valor" = $ipPublic }
+    )
+
+    # SALIDA
+    Write-Host "`n--- Información General ---" -ForegroundColor Yellow
+    $infoGeneral | Format-Table -AutoSize
+
+    Write-Host "`n--- Hardware y Recursos ---" -ForegroundColor Yellow
+    $infoHardware | Format-Table -AutoSize
+
+    Write-Host "`n--- Red y Conectividad ---" -ForegroundColor Yellow
+    $infoRed | Format-Table -AutoSize
+
+    Write-Host "`n✅ Información del sistema mostrada correctamente." -ForegroundColor Green
+}</p>
     
 </body>
 </html>
